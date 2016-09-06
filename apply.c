@@ -7,12 +7,27 @@
 #include <sys/stat.h>
 #include <string.h> // memmem etc
 #include <unistd.h> // close
-
+#include <stdarg.h>
 
 #define PUT(str, len) fwrite(str,1,len,dest); fflush(dest);
 #define PUTLIT(lit) PUT(lit,sizeof(lit)-1)
 
-void apply_template(FILE* dest, int source) {
+typedef const char* string;
+#define ELEMENT_TYPE string
+#include "array.c"
+#undef ELEMENT_TYPE
+
+void apply_template(int dest, int source, ...) {
+	FILE* dest_file = fdopen(dest,"wt");
+	assert(dest_file != NULL);
+
+	string_array args;
+	{
+		va_list varg;
+		va_start(varg,source);
+		va_list_to_string_arrayv(&args,source);
+		va_end(varg);
+	}
 	struct stat info;
 	// must redirect a file from stdin to here.
 	assert(0==fstat(source, &info));
@@ -45,6 +60,13 @@ void apply_template(FILE* dest, int source) {
 
 			const char* value = getenv(name);
 			if(NULL==value) {
+				for(i=0;i<args.length;i+=2) {
+					if(0==strcmp(args[i], name)) {
+						value = args[i+1];
+					}
+				}
+			}
+			if(NULL==value) {
 				// don't forget the $(
 				// output to the )
 				PUT(buf+offset-2,end-start+1);
@@ -55,5 +77,5 @@ void apply_template(FILE* dest, int source) {
 		// past the )
 		offset = end-buf+1;
 	}
-	return 0;
+	fclose(dest_file);
 }
