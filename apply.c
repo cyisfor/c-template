@@ -1,4 +1,6 @@
 #define _GNU_SOURCE
+#include "apply.h"
+
 #include "myassert/assert.h"
 
 #include <sys/mman.h>
@@ -7,19 +9,15 @@
 #include <sys/stat.h>
 #include <string.h> // memmem etc
 #include <unistd.h> // close
-#include <stdarg.h>
 
 #define PUT(str, len) fwrite(str,1,len,dest); fflush(dest);
 #define PUTLIT(lit) PUT(lit,sizeof(lit)-1)
 
-typedef const char* string;
-#define ELEMENT_TYPE string
-#include "array.c"
-#undef ELEMENT_TYPE
+#include "string_array.ch"
 
 // apply_template(dest,source,"key","value","key2","value2",NULL);
 
-void apply_template(int dest, int source, ...) {
+void apply_template(int dest, int source, va_list varg) {
 	FILE* dest_file = fdopen(dest,"wt");
 	assert(dest_file != NULL);
 
