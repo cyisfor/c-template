@@ -1,1 +1,1 @@
-void apply_template(int dest, int source);
+void apply_template(int dest, int source, ...);

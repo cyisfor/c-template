@@ -17,6 +17,8 @@ typedef const char* string;
 #include "array.c"
 #undef ELEMENT_TYPE
 
+// apply_template(dest,source,"key","value","key2","value2",NULL);
+
 void apply_template(int dest, int source, ...) {
 	FILE* dest_file = fdopen(dest,"wt");
 	assert(dest_file != NULL);
@@ -58,6 +60,7 @@ void apply_template(int dest, int source, ...) {
 			memcpy(name,start+2,amt);
 			name[amt] = '\0';
 
+			// environment overrides the passed defaults
 			const char* value = getenv(name);
 			if(NULL==value) {
 				for(i=0;i<args.length;i+=2) {
