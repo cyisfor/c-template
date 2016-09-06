@@ -1,4 +1,6 @@
 #define _GNU_SOURCE
+#include "myassert/assert.h"
+
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h> // NULL
@@ -6,30 +8,17 @@
 #include <string.h> // memmem etc
 #include <unistd.h> // close
 
-#include <error.h>
-#include <errno.h>
 
-
-
-void assertp(const char* file, int line, const char* code, int test) {
-	if(!test) {
-		error(23,errno,"Assert fail %s:%d (%s)",file,line,code);
-	}
-}
-
-#define assert(test) assertp(__FILE__,__LINE__,#test,(int)(test))
-
-#define PUT(str, len) fwrite(str,1,len,stdout); fflush(stdout);
+#define PUT(str, len) fwrite(str,1,len,dest); fflush(dest);
 #define PUTLIT(lit) PUT(lit,sizeof(lit)-1)
 
-int main(int argc, char *argv[])
-{
+void apply_template(FILE* dest, int source) {
 	struct stat info;
 	// must redirect a file from stdin to here.
-	assert(0==fstat(0, &info));
+	assert(0==fstat(source, &info));
 	char* buf = mmap(NULL, info.st_size, PROT_READ, MAP_SHARED, 0, 0);
 	assert(buf != MAP_FAILED);
-	close(0);
+	close(source);
 	off_t offset = 0;
 	while(offset < info.st_size) {
 		char* start = memmem(buf+offset,info.st_size-offset,"$(",2);
