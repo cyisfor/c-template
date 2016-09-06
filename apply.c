@@ -10,17 +10,17 @@
 #include <string.h> // memmem etc
 #include <unistd.h> // close
 
-#define PUT(str, len) fwrite(str,1,len,dest); fflush(dest);
+#define PUT(str, len) write(dest,str,len)
 #define PUTLIT(lit) PUT(lit,sizeof(lit)-1)
 
-#include "string_array.ch"
+#ifndef DO_MAIN
+#include "string_array.c"
+#endif
 
 // apply_template(dest,source,"key","value","key2","value2",NULL);
 
 void apply_template(int dest, int source, va_list varg) {
-	FILE* dest_file = fdopen(dest,"wt");
-	assert(dest_file != NULL);
-
+#ifndef DO_MAIN
 	string_array args;
 	{
 		va_list varg;
@@ -28,6 +28,7 @@ void apply_template(int dest, int source, va_list varg) {
 		va_list_to_string_arrayv(&args,source);
 		va_end(varg);
 	}
+#endif
 	struct stat info;
 	// must redirect a file from stdin to here.
 	assert(0==fstat(source, &info));
@@ -60,6 +61,7 @@ void apply_template(int dest, int source, va_list varg) {
 
 			// environment overrides the passed defaults
 			const char* value = getenv(name);
+#ifndef DO_MAIN
 			if(NULL==value) {
 				for(i=0;i<args.length;i+=2) {
 					if(0==strcmp(args[i], name)) {
@@ -67,6 +69,7 @@ void apply_template(int dest, int source, va_list varg) {
 					}
 				}
 			}
+#endif
 			if(NULL==value) {
 				// don't forget the $(
 				// output to the )
@@ -78,7 +81,8 @@ void apply_template(int dest, int source, va_list varg) {
 		// past the )
 		offset = end-buf+1;
 	}
-	fclose(dest_file);
+	close(dest);
+	munmap(buf,info.st_size);
 }
 
 #ifdef DO_MAIN
