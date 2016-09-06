@@ -80,3 +80,18 @@ void apply_template(int dest, int source, va_list varg) {
 	}
 	fclose(dest_file);
 }
+
+#ifdef DO_MAIN
+// ugh... bootstrapping
+
+void apptemp(int dest, int source, ...) {
+	va_list args;
+	va_start(args,source);
+	apply_template(dest,source,args);
+}
+
+int main(void) {
+	apptemp(1,0);
+	return 0;
+}
+#endif
