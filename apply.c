@@ -14,20 +14,21 @@
 #define PUTLIT(lit) PUT(lit,sizeof(lit)-1)
 
 #ifndef DO_MAIN
-#include "string_array.c"
+#include <stdarg.h>
+
+#include "string_array.h"
 #endif
 
 // apply_template(dest,source,"key","value","key2","value2",NULL);
 
-void apply_template(int dest, int source, va_list varg) {
+void apply_template(int dest, int source
+#ifndef DO_MAIN
+										, va_list varg
+#endif
+										) {
 #ifndef DO_MAIN
 	string_array args;
-	{
-		va_list varg;
-		va_start(varg,source);
-		va_list_to_string_arrayv(&args,source);
-		va_end(varg);
-	}
+	va_list_to_string_arrayv(&args,varg);
 #endif
 	struct stat info;
 	// must redirect a file from stdin to here.
@@ -63,9 +64,10 @@ void apply_template(int dest, int source, va_list varg) {
 			const char* value = getenv(name);
 #ifndef DO_MAIN
 			if(NULL==value) {
+				int i;
 				for(i=0;i<args.length;i+=2) {
-					if(0==strcmp(args[i], name)) {
-						value = args[i+1];
+					if(0==strcmp(args.items[i], name)) {
+						value = args.items[i+1];
 					}
 				}
 			}
@@ -88,14 +90,9 @@ void apply_template(int dest, int source, va_list varg) {
 #ifdef DO_MAIN
 // ugh... bootstrapping
 
-void apptemp(int dest, int source, ...) {
-	va_list args;
-	va_start(args,source);
-	apply_template(dest,source,args);
-}
-
 int main(void) {
-	apptemp(1,0);
+	apply_template(1,0);
+
 	return 0;
 }
 #endif
