@@ -1,0 +1,3 @@
+[submodule "myassert"]
+	path = myassert
+	url = https://github.com/cyisfor/myassert.git
