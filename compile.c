@@ -21,17 +21,79 @@
 
 // apply_template(dest,source,"key","value","key2","value2",NULL);
 
-void apply_template(int dest, int source
-#ifndef DO_MAIN
-										, va_list varg
-#endif
-										) {
-#ifndef DO_MAIN
-	string_array args = {};
-	va_list_to_string_arrayv(&args,varg);
-#endif
+struct item {
+	enum { LITERAL, VARIABLE, FUNCTION } type;
+	uv_buf_t d;
+};
+
+/* LITERAL VARIABLE1 LITERAL VARIABLE2 LITERAL FUNCTION LITERAL VARIABLE1 VARIABLE3 LITERAL ETC ... */
+#ifdef JUST_AN_EXAMPLE
+
+struct closure {
+	void (*func)(void* data, struct closure continuation);
+	void* data;
+};
+
+
+struct params {
+	uv_buf_t VARIABLE1;
+	uv_buf_t VARIABLE2;
+	struct closure FUNCTION;
+	uv_buf_t VARIABLE3;
+	struct closure FINALLY;
+};
+
+void output_to_stream4(uv_write_t* req, int status) {
+	assert(status >= 0);
+	free(this->VARIABLE3.base);
+	struct params* this = *((struct params**) &req[1]);
+	free(req);
+	struct closure continuation = { NULL, NULL };
+	this->FINALLY.func(this->FUNCTION.data, continuation);
+	free(this);
+}
+
+void output_to_stream3(void* data, struct closure next) {
+	uv_write_t* writing = (uv_write_t*)data;
+	uv_stream_t* dest = writing->data;
+	struct params* this = *((struct params**) data + sizeof(uv_write_t));
+	uv_write(writing, dest, &this->VARIABLE3, 1, output_to_stream4);
+}
+
+void output_to_stream2(uv_write_t* req, int status) {
+	assert(status >= 0);
+	free(this->VARIABLE1.base);
+	free(this->VARIABLE2.base);
+	struct params* this = *((struct params**) &req[1]);
+	struct closure continuation = {
+		output_to_stream3,
+		req
+	};
+	this->FUNCTION.func(this->FUNCTION.data, continuation);
+}
+
+void output_to_stream(struct params* params, uv_stream_t* dest) {
+	uv_buf_t bufs[5] = {
+		{LITERAL,LEN},
+		params.VARIABLE,
+		{LITERAL,LEN},
+		params.VARIABLE2,
+		{LITERAL,LEN},
+	};
+	void* data = malloc(sizeof(uv_write_t) + sizeof(struct params*));
+	uv_write_t* writing = (uv_write_t*) data;
+	writing->data = dest;
+	struct params** save = (struct params**)(data + sizeof(uv_write_t));
+	*save = params;
+	uv_write(writing, dest, bufs, 5, output_to_stream2);
+}
+
+
+		
+
+void apply_template(int dest, int source) {
 	struct stat info;
-	// must redirect a file from stdin to here.
+	// may redirect a file from stdin to here.
 	assert(0==fstat(source, &info));
 	char* buf = mmap(NULL, info.st_size, PROT_READ, MAP_SHARED, source, 0);
 	assert(buf != MAP_FAILED);
