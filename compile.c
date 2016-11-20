@@ -26,6 +26,30 @@ struct item {
 	uv_buf_t d;
 };
 
+/*
+$VARIABLE (not IF, WHEN, LOOP, INCLUDE)
+$(VARIABLE)
+$(VARIABLE:type) type = i32, u32, i16, u16, f32, f64, b, c, etc
+-> type VARIABLE in the struct, and printf(...) in the generator compilers
+$(VARIABLE:length) length = [0-9]+ fixed length string
+-> char VARIABLE[length] in the struct, length hard-coded in the generator compilers
+-> instead of write(lit) write(buf) write(lit), it's memcpy(buflitwithspace,buf,length) write(buflitwithspace)
+$(VARIABLE:type:length)
+$(VARIABLE)
+-> uv_buf_t VARIABLE (.base, .len) in the struct
+$IF(CONDITION) { ... }
+-> bool CONDITION in the struct, conditional code in the generator compilers
+-> (careful about conditional continuations, skip unused stages)
+$INCLUDE(FILE[:PREFIX])
+-> include file inline within template, optional prefix to all variables within (recursive)
+$LOOP(CONDITION) { ... }
+-> void (*CONDITION)(struct*, closure loop, closure done) in the struct
+-> set struct variables, then call loop to loop, call done when done.
+$(FUNCTION arg1 arg2 arg3) 
+-> void (*FUNCTION)(struct*, closure done, uv_buf_t arg1, arg2, arg3)
+-> set struct variables, then call done
+ */
+
 /* LITERAL VARIABLE1 LITERAL VARIABLE2 LITERAL FUNCTION LITERAL VARIABLE1 VARIABLE3 LITERAL ETC ... */
 #ifdef JUST_AN_EXAMPLE
 
