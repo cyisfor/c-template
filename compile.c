@@ -22,8 +22,14 @@
 // apply_template(dest,source,"key","value","key2","value2",NULL);
 
 struct item {
-	enum { LITERAL, VARIABLE, FUNCTION } type;
+	enum { LITERAL, VARIABLE, FUNCTION, IF, LOOP, INCLUDE } type;
 	uv_buf_t d;
+};
+
+struct closure {
+	enum { STEP, FORK, END } type;
+	void* data;
+	void cleanup_data(void*);
 };
 
 /*
@@ -50,69 +56,130 @@ $(FUNCTION arg1 arg2 arg3)
 -> set struct variables, then call done
  */
 
-/* LITERAL VARIABLE1 LITERAL VARIABLE2 LITERAL FUNCTION LITERAL VARIABLE1 VARIABLE3 LITERAL ETC ... */
 #ifdef JUST_AN_EXAMPLE
 
-struct closure {
-	void (*func)(void* data, struct closure continuation);
-	void* data;
-};
+/* LITERAL $(VARIABLE1) LITERAL  */
 
+struct params;
+
+struct end_closure {
+	void* data;
+	void (*end)(struct params*, void* data);
+};
 
 struct params {
 	uv_buf_t VARIABLE1;
-	uv_buf_t VARIABLE2;
-	struct closure FUNCTION;
-	uv_buf_t VARIABLE3;
-	struct closure FINALLY;
+	struct end_closure FINALLY;
 };
 
-void output_to_stream4(uv_write_t* req, int status) {
+void all_done(uv_write_t* req, int status) {
 	assert(status >= 0);
-	free(this->VARIABLE3.base);
 	struct params* this = *((struct params**) &req[1]);
-	free(req);
-	struct closure continuation = { NULL, NULL };
-	this->FINALLY.func(this->FUNCTION.data, continuation);
-	free(this);
-}
-
-void output_to_stream3(void* data, struct closure next) {
-	uv_write_t* writing = (uv_write_t*)data;
-	uv_stream_t* dest = writing->data;
-	struct params* this = *((struct params**) data + sizeof(uv_write_t));
-	uv_write(writing, dest, &this->VARIABLE3, 1, output_to_stream4);
-}
-
-void output_to_stream2(uv_write_t* req, int status) {
-	assert(status >= 0);
 	free(this->VARIABLE1.base);
-	free(this->VARIABLE2.base);
-	struct params* this = *((struct params**) &req[1]);
-	struct closure continuation = {
-		output_to_stream3,
-		req
-	};
-	this->FUNCTION.func(this->FUNCTION.data, continuation);
+	this->FINALLY.end(this, this->FINALLY.data);
+	if(this->FINALLY.cleanup_data)
+		this->FINALLY.cleanup_data(this->FINALLY.data);
+	free(this);
+	free(req);
 }
 
 void output_to_stream(struct params* params, uv_stream_t* dest) {
-	uv_buf_t bufs[5] = {
-		{LITERAL,LEN},
-		params.VARIABLE,
-		{LITERAL,LEN},
-		params.VARIABLE2,
-		{LITERAL,LEN},
+	uv_buf_t bufs[3] = {
+		{LITERAL1,LEN},
+		params.VARIABLE1,
+		{LITERAL2,LEN},
 	};
 	void* data = malloc(sizeof(uv_write_t) + sizeof(struct params*));
 	uv_write_t* writing = (uv_write_t*) data;
 	writing->data = dest;
 	struct params** save = (struct params**)(data + sizeof(uv_write_t));
 	*save = params;
-	uv_write(writing, dest, bufs, 5, output_to_stream2);
+	uv_write(writing, dest, bufs, 3, all_done);
+}
+
+#endif
+
+#ifdef EXAMPLE_FUNCTION
+
+/* LITERAL1 $(FUNCTION1 2 3 4) LITERAL2 */
+ 
+struct params;
+
+struct end_closure {
+	struct closure base;
+	void (*end)(struct params*, void* data);
+};
+
+
+struct continue_closure {
+	struct closure base;
+	void (*next)(void*);
+}
+
+struct params {
+	struct function1_closure {
+		struct closure base;
+		void (*step)(struct params*, void* data, uv_buf_t arguments, struct continue_closure* next);
+	} FUNCTION1;
+	struct end_closure FINALLY;
+};
+
+// 1 uv_write_t past start
+#define THIS ((struct params**) &writing[1])
+
+void all_done(uv_write_t* writing, int status) {
+	assert(status >= 0);
+	struct params* this = *(THIS);
+	this->FINALLY.end(this, this->FINALLY.base.data);
+	if(this->FINALLY.cleanup_data)
+		this->FINALLY.cleanup_data(this->FINALLY.base.data);
+	free(this);
+	free(writing); // only had a malloc'd **pointer to this
+}
+
+void called_function1(void* data) {
+	static uv_buf_t bufs[1] = {
+		{LITERAL2,LEN},
+	};
+
+	if(this->FUNCTION1.base.cleanup_data)
+		this->FUNCTION1.base.cleanup_data(this->FINALLY.base.data);
+
+	uv_write_t* writing = (uv_write_t*) data;
+
+	uv_write(writing, dest, bufs, 1, all_done);
+}
+
+void call_function1(uv_write_t* writing, int status) {
+	assert(status >= 0);
+	struct params* this = *(THIS);
+	struct continue_closure* after = ((struct continue_closure*) &(THIS)[1]);
+	// 1 struct params** past this
+	after->base.data = writing;
+	after->next = called_function1;
+	const uv_buf_t arguments = { LITARGUMENTS, sizeof(LITARGUMENTS) };
+	this->FUNCTION1.step(this, this->FUNCTION1.data, arguments, after);
+#undef THIS
+}
+
+void output_to_stream(struct params* params, uv_stream_t* dest) {
+	static uv_buf_t bufs[1] = {
+		{LITERAL1,LEN},
+	};
+	void* data = malloc(sizeof(uv_write_t) + sizeof(struct params*));
+	uv_write_t* writing = (uv_write_t*) data;
+	writing->data = dest;
+	struct params** save = (struct params**)(data + sizeof(uv_write_t)
+																					 + sizeof(struct end_closure) // after function1
+		);
+	*save = params;
+	uv_write(writing, dest, bufs, 1, call_function1);
 }
 
 
+
+
+#endif
 		
 
 void apply_template(int dest, int source) {
